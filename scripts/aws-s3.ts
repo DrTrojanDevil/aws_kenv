@@ -9,8 +9,7 @@ import yaml from 'js-yaml'
 import jq from 'node-jq'
 
 //TODO
-//1. add create
-//2. add some commands to change aws creds and region 
+//1. add some commands to change aws creds and region 
 
 // Initialize environment variables
 const accessKeyId = await env("AWS_ACCESS_KEY_ID", "Enter your AWS Access Key ID")
@@ -43,6 +42,11 @@ const icons = {
     <path d="M14 2H6C4.896 2 4 2.896 4 4V20C4 21.104 4.896 22 6 22H18C19.104 22 20 21.104 20 20V8L14 2zM14 4L18 8H14V4zM6 4H12V9H18V20H6V4z"/>
   </svg>
   `,
+  uploadIcon: `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+    <path d="M12 2L7 7H10V15H14V7H17L12 2zM5 19H19V21H5V19z"/>
+  </svg>
+  `
 };
 
 function isTextFile(key: string) {
@@ -90,8 +94,9 @@ async function* s3Explorer(bucketName: string, prefix: string = "") {
       }
 
       const items = [
-        { name: "..", value: "RETURN_TO_BUCKET_SELECTION", html: `<div style="display: flex; align-items: center;">${icons.bucketIcon}<span style="margin-left: 10px;">..</span></div>` },
+        { name: "Return to Bucket Selection", value: "RETURN_TO_BUCKET_SELECTION", html: `<div style="display: flex; align-items: center;">${icons.bucketIcon}<span style="margin-left: 10px;">Return to Bucket Selection</span></div>` },
         ...(prefix ? [{ name: "..", value: "..", html: `<div style="display: flex; align-items: center;">${icons.folderIcon}<span style="margin-left: 10px;">..</span></div>` }] : []),
+        { name: "Upload", value: "UPLOAD", html: `<div style="display: flex; align-items: center;">${icons.uploadIcon}<span style="margin-left: 10px;">Upload</span></div>` },
         ...(objectData.CommonPrefixes || []).map(item => ({
           name: item.Prefix || "Unnamed Prefix",
           value: item.Prefix || "Unnamed Prefix",
@@ -153,6 +158,33 @@ async function* s3Explorer(bucketName: string, prefix: string = "") {
         } else {
           prefix = ""
         }
+      } else if (selectedItem === "UPLOAD") {
+        const keyPath = await arg("Enter the key path to upload:")
+        const finalKeyPath = prefix ? `${prefix}${keyPath}` : keyPath
+
+        // Check if the file already exists
+        try {
+          const headObjectCommand = new HeadObjectCommand({ Bucket: bucketName, Key: finalKeyPath })
+          await s3.send(headObjectCommand)
+          const overwrite = await confirmAction(`File already exists at ${finalKeyPath}. Do you want to overwrite it?`)
+          if (!overwrite) {
+            continue
+          }
+        } catch (err) {
+          // File does not exist, proceed with upload
+        }
+
+        const filePath = await path({ hint: `Select the file to upload to ${finalKeyPath}` })
+        const fileContent = await readFile(filePath)
+
+        const putObjectCommand = new PutObjectCommand({
+          Bucket: bucketName,
+          Key: finalKeyPath,
+          Body: fileContent,
+        })
+        await s3.send(putObjectCommand)
+        await div(md(`### File successfully uploaded to ${finalKeyPath}`))
+
       } else if (selectedItem.endsWith("/")) {
         history.push(prefix)
         prefix = selectedItem
