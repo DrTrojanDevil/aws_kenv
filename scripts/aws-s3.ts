@@ -2,6 +2,38 @@
 // Description: A utility to interact with s3 buckets
 // Keyword: AWS
 // Author: Aaron Walker, Ph. D. 
+
+/**
+ * AWS S3 Utility Script
+ *
+ * This script provides a command-line utility for interacting with AWS S3 buckets using the Script Kit framework.
+ * It allows users to list, upload, download, view, edit, and delete objects in S3 buckets.
+ * The script leverages the AWS SDK for JavaScript (v3) and supports multiple AWS regions and credentials.
+ *
+ * Key Features:
+ * - List S3 buckets and their contents, including folders and files.
+ * - Navigate through bucket folders with support for returning to previous levels.
+ * - Upload files to a specified path within a bucket, with overwrite confirmation.
+ * - Download files from S3 buckets to the local filesystem.
+ * - Open text files in an editor for viewing and modification.
+ * - Save modified files either locally or back to the S3 bucket.
+ * - Display images directly within the script interface.
+ * - Delete files from S3 buckets with confirmation.
+ *
+ * Usage:
+ * - Initialize AWS credentials and region using environment variables.
+ * - Select an S3 bucket to interact with from the list of available buckets.
+ * - Use the provided options to navigate folders, upload files, download files, edit text files, and delete files.
+ *
+ * Requirements:
+ * - AWS SDK for JavaScript (v3)
+ * - Script Kit framework
+ * - js-yaml and node-jq packages for handling YAML and JSON formatting
+ *
+ * Author:
+ * Aaron Walker, Ph. D. (twitter: @aaronhwalker github: DrTrojanDevil)
+ */
+
 import "@johnlindquist/kit"
 import { S3Client, ListBucketsCommand, ListObjectsCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
