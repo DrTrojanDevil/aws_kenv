@@ -3,17 +3,14 @@
 // Keyword: AWS
 // Author: Aaron Walker, Ph. D. 
 import "@johnlindquist/kit"
-import { S3Client, ListBucketsCommand, ListObjectsCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3"
+import { S3Client, ListBucketsCommand, ListObjectsCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import yaml from 'js-yaml'
 import jq from 'node-jq'
 
-
 //TODO
-//1. add create/delete fns
+//1. add create
 //2. add some commands to change aws creds and region 
-//3. go back to bucket from folder view 
-
 
 // Initialize environment variables
 const accessKeyId = await env("AWS_ACCESS_KEY_ID", "Enter your AWS Access Key ID")
@@ -71,6 +68,14 @@ function isTextFile(key: string) {
   return null;
 }
 
+async function confirmAction(message: string): Promise<boolean> {
+  const confirm = await arg(message, [
+    { name: 'Yes', value: 'yes' },
+    { name: 'No', value: 'no' },
+  ])
+  return confirm === 'yes'
+}
+
 async function* s3Explorer(bucketName: string, prefix: string = "") {
   const history: string[] = []
 
@@ -80,11 +85,12 @@ async function* s3Explorer(bucketName: string, prefix: string = "") {
       const objectData = await s3.send(objectCommand)
 
       if ((!objectData.Contents || objectData.Contents.length === 0) && (!objectData.CommonPrefixes || objectData.CommonPrefixes.length === 0)) {
-        div(md(`### No objects found in bucket: ${bucketName} with prefix: ${prefix}`))
+        await div(md(`### No objects found in bucket: ${bucketName} with prefix: ${prefix}`))
         return
       }
 
       const items = [
+        { name: "..", value: "RETURN_TO_BUCKET_SELECTION", html: `<div style="display: flex; align-items: center;">${icons.bucketIcon}<span style="margin-left: 10px;">..</span></div>` },
         ...(prefix ? [{ name: "..", value: "..", html: `<div style="display: flex; align-items: center;">${icons.folderIcon}<span style="margin-left: 10px;">..</span></div>` }] : []),
         ...(objectData.CommonPrefixes || []).map(item => ({
           name: item.Prefix || "Unnamed Prefix",
@@ -139,7 +145,9 @@ async function* s3Explorer(bucketName: string, prefix: string = "") {
         },
       })
 
-      if (selectedItem === "..") {
+      if (selectedItem === "RETURN_TO_BUCKET_SELECTION") {
+        return
+      } else if (selectedItem === "..") {
         if (history.length > 0) {
           prefix = history.pop() || ''
         } else {
@@ -160,6 +168,7 @@ async function* s3Explorer(bucketName: string, prefix: string = "") {
           const action = await arg(`What would you like to do with ${selectedItem}?`, [
             { name: 'Download', value: 'download' },
             { name: 'Open in editor', value: 'open' },
+            { name: 'Delete', value: 'delete' },
           ])
           if (action === 'download') {
             const filePath = await path({ hint: `Select download location for ${selectedItem}` })
@@ -182,13 +191,10 @@ async function* s3Explorer(bucketName: string, prefix: string = "") {
               if (nextAction === 'saveLocal') {
                 const saveDestinationPath = await path() // Select a path that doesn't exist
                 await writeFile(saveDestinationPath, editedData)
-                div(md(`### File successfully saved locally to ${saveDestinationPath}`))
+                await div(md(`### File successfully saved locally to ${saveDestinationPath}`))
               } else if (nextAction === 'saveBucket') {
-                const confirmSave = await arg(`Are you sure you want to overwrite the file at ${selectedItem}?`, [
-                  { name: 'Yes', value: 'yes' },
-                  { name: 'No', value: 'no' },
-                ])
-                if (confirmSave === 'yes') {
+                const confirmSave = await confirmAction(`Are you sure you want to overwrite the file at ${selectedItem}?`)
+                if (confirmSave) {
                   const putObjectCommand = new PutObjectCommand({
                     Bucket: bucketName,
                     Key: selectedItem,
@@ -200,6 +206,13 @@ async function* s3Explorer(bucketName: string, prefix: string = "") {
                 }
               }
             }
+          } else if (action === 'delete') {
+            const confirmDelete = await confirmAction(`Are you sure you want to delete the file at ${selectedItem}?`)
+            if (confirmDelete) {
+              const deleteObjectCommand = new DeleteObjectCommand({ Bucket: bucketName, Key: selectedItem })
+              await s3.send(deleteObjectCommand)
+              await div(md(`### File successfully deleted: ${selectedItem}`))
+            }
           }
         } else {
           const filePath = await path({ hint: `Select download location for ${selectedItem}` })
@@ -210,7 +223,7 @@ async function* s3Explorer(bucketName: string, prefix: string = "") {
     }
   } catch (err) {
     console.error("Error:", err)
-    div(md(`### Error: ${err.message}`))
+    await div(md(`### Error: ${err.message}`))
   }
 }
 
@@ -219,7 +232,7 @@ async function selectBucket() {
   const bucketData = await s3.send(bucketCommand)
 
   if (!bucketData.Buckets || bucketData.Buckets.length === 0) {
-    div(md(`### No buckets found`))
+    await div(md(`### No buckets found`))
     return null
   }
 
@@ -233,11 +246,15 @@ async function selectBucket() {
   return selectedBucket
 }
 
-const selectedBucket = await selectBucket()
-if (selectedBucket) {
-  const iterator = s3Explorer(selectedBucket)
-  let result = await iterator.next()
-  while (!result.done) {
-    result = await iterator.next(result.value)
+while (true) {
+  const selectedBucket = await selectBucket()
+  if (selectedBucket) {
+    const iterator = s3Explorer(selectedBucket)
+    let result = await iterator.next()
+    while (!result.done) {
+      result = await iterator.next(result.value)
+    }
+  } else {
+    break
   }
 }
