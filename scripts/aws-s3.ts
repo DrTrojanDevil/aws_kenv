@@ -8,7 +8,7 @@
  *
  * This script provides a command-line utility for interacting with AWS S3 buckets using the Script Kit framework.
  * It allows users to list, upload, download, view, edit, and delete objects in S3 buckets.
- * The script leverages the AWS SDK for JavaScript (v3) and supports multiple AWS regions and credentials.
+ * The script leverages the AWS SDK for JavaScript (v3).
  *
  * Key Features:
  * - List S3 buckets and their contents, including folders and files.
@@ -30,8 +30,7 @@
  * - Script Kit framework
  * - js-yaml and node-jq packages for handling YAML and JSON formatting
  *
- * Author:
- * Aaron Walker, Ph. D. (twitter: @aaronhwalker github: DrTrojanDevil)
+ * github: DrTrojanDevil
  */
 
 import "@johnlindquist/kit"
